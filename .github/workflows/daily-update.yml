@@ -1,0 +1,59 @@
+name: Daily catalogue update
+
+on:
+  schedule:
+    # 03:00 UTC. GitHub schedules always run in UTC, so this is 04:00 (winter) or
+    # 05:00 (summer) in Switzerland.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+# Never let a manual run race against the scheduled one on the same branch.
+concurrency:
+  group: daily-catalogue-update
+  cancel-in-progress: false
+
+jobs:
+  update-catalogue:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The CLIP weights are ~25 MB and never change unless the script asks for
+      # another model, so they are worth keeping between runs.
+      - name: Restore model cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/transformers
+          key: transformers-${{ hashFiles('scripts/update-catalog.js') }}
+          restore-keys: transformers-
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Exits non-zero when the scrape looks broken, which fails the job instead of
+      # committing a truncated catalogue.
+      - name: Rebuild the catalogue
+        run: node scripts/update-catalog.js
+
+      - name: Commit and push when the catalogue changed
+        run: |
+          if [ -z "$(git status --porcelain -- public/data/art_catalog.json)" ]; then
+            echo "Catalogue unchanged, nothing to deploy." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/art_catalog.json
+          git commit -m "chore: update art catalogue"
+          git push
+
+          echo "Pushed a new catalogue, Vercel will redeploy." >> "$GITHUB_STEP_SUMMARY"
