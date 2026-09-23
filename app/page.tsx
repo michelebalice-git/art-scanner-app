@@ -175,7 +175,7 @@ export default function Home() {
         ? data.ranked_ids.filter((id): id is string => typeof id === "string" && id.length > 0)
         : [];
 
-      if (!response.ok || ids.length === 0) {
+      if (!data || !response.ok || ids.length === 0) {
         throw new Error(data?.error ?? NOT_RECOGNIZED);
       }
 
