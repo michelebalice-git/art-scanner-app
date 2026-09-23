@@ -3,8 +3,16 @@
 import Image from "next/image";
 import { useCallback, useState } from "react";
 
+import { compressPhotoForRerank } from "./compress-photo";
 import { useCamera } from "./use-camera";
+import { useCatalog } from "./use-catalog";
 import { useMatcher } from "./use-matcher";
+
+import {
+  INSTANT_MATCH_SCORE,
+  RERANK_CANDIDATE_COUNT,
+  RERANK_MIN_SCORE,
+} from "@/lib/rank-catalog";
 
 type View = "home" | "camera" | "analyzing" | "result";
 
@@ -59,7 +67,16 @@ export default function Home() {
     retry: retryMatcher,
   } = useMatcher();
 
+  const {
+    status: catalogStatus,
+    error: catalogError,
+    rank,
+    retry: retryCatalog,
+  } = useCatalog();
+
   const matcherReady = matcherStatus === "ready";
+  const catalogReady = catalogStatus === "ready";
+  const scannerReady = matcherReady && catalogReady;
 
   const [view, setView] = useState<View>("home");
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
@@ -67,13 +84,13 @@ export default function Home() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const openCamera = useCallback(() => {
-    if (!matcherReady) return;
+    if (!scannerReady) return;
     setMatch(null);
     setAnalysisError(null);
     setCapturedPhoto(null);
     setView("camera");
     startCamera();
-  }, [matcherReady, startCamera]);
+  }, [scannerReady, startCamera]);
 
   const closeCamera = useCallback(() => {
     stopCamera();
@@ -82,7 +99,7 @@ export default function Home() {
 
   const getInfo = useCallback(async () => {
     const frame = capture();
-    if (!frame || !matcherReady) return;
+    if (!frame || !scannerReady) return;
 
     stopCamera();
     setCapturedPhoto(frame.photo);
@@ -90,10 +107,52 @@ export default function Home() {
 
     try {
       const embedding = await embed(frame.canvas);
-      const response = await fetch("/api/identify", {
+      const ranked = rank(embedding, RERANK_CANDIDATE_COUNT);
+      const best = ranked[0];
+
+      if (!best || best.score < RERANK_MIN_SCORE) {
+        throw new Error(NOT_RECOGNIZED);
+      }
+
+      if (best.score > INSTANT_MATCH_SCORE) {
+        setMatch({
+          artist: best.artwork.artist,
+          title: best.artwork.title,
+          imageUrl: best.artwork.imageUrl,
+          year: best.artwork.year,
+        });
+        setView("result");
+
+        void fetch("/api/identify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ artist: best.artwork.artist, title: best.artwork.title }),
+        })
+          .then((response) => response.json())
+          .then((data: ArtworkMatch) => {
+            setMatch((current) => {
+              if (!current || current.artist !== data.artist || current.title !== data.title) {
+                return current;
+              }
+              return { ...current, ...data };
+            });
+          })
+          .catch(() => undefined);
+        return;
+      }
+
+      const response = await fetch("/api/vision-rerank", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ embedding }),
+        body: JSON.stringify({
+          image: compressPhotoForRerank(frame.canvas),
+          candidates: ranked.map(({ artwork }) => ({
+            id: artwork.id,
+            artist: artwork.artist,
+            title: artwork.title,
+            imageUrl: artwork.imageUrl,
+          })),
+        }),
       });
 
       const data: (ArtworkMatch & { error?: string }) | null = await response
@@ -110,7 +169,7 @@ export default function Home() {
     } finally {
       setView("result");
     }
-  }, [capture, embed, matcherReady, stopCamera]);
+  }, [capture, embed, rank, scannerReady, stopCamera]);
 
   if (view === "camera") {
     return (
@@ -299,12 +358,19 @@ export default function Home() {
         </div>
       ) : null}
 
-      {matcherStatus === "error" ? (
+      {matcherStatus === "error" || catalogStatus === "error" ? (
         <div className="flex max-w-sm flex-col items-center gap-4">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {matcherError ?? "The matching engine could not be loaded."}
+            {matcherError ?? catalogError ?? "The scanner could not be loaded."}
           </p>
-          <button type="button" onClick={retryMatcher} className={secondaryButton}>
+          <button
+            type="button"
+            onClick={() => {
+              if (matcherStatus === "error") retryMatcher();
+              if (catalogStatus === "error") retryCatalog();
+            }}
+            className={secondaryButton}
+          >
             Try Again
           </button>
         </div>
@@ -313,14 +379,14 @@ export default function Home() {
       <button
         type="button"
         onClick={openCamera}
-        disabled={!matcherReady}
+        disabled={!scannerReady}
         className={primaryButton}
       >
         Open Camera
       </button>
 
       <p className="max-w-sm text-sm text-zinc-500">
-        {matcherReady
+        {scannerReady
           ? "Your browser will ask for camera permission the first time you open the viewfinder."
           : "The camera unlocks after the matching engine is ready."}
       </p>

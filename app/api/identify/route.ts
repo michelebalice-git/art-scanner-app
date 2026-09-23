@@ -1,7 +1,6 @@
 import { artCatalog } from "@/lib/art-catalog";
+import { withWikipedia } from "@/lib/artwork-info";
 import { findCatalogMatch } from "@/lib/match-catalog";
-
-import { findWikipediaUrl } from "./wikipedia";
 
 const NOT_RECOGNIZED = "Artwork not recognized";
 
@@ -21,11 +20,31 @@ function parseEmbedding(value: unknown): number[] | null {
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  let body: { embedding?: unknown; image?: unknown };
+  let body: { embedding?: unknown; image?: unknown; artist?: unknown; title?: unknown };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const artist = typeof body.artist === "string" ? body.artist.trim() : "";
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (artist && title) {
+    const known = artCatalog.artworks.find(
+      (artwork) => artwork.artist === artist && artwork.title === title
+    );
+    return Response.json(
+      await withWikipedia(
+        {
+          artist,
+          title,
+          imageUrl: known?.imageUrl ?? "",
+          year: known?.year,
+          collection: known?.collection,
+        },
+        1
+      )
+    );
   }
 
   if (body.image !== undefined && body.embedding === undefined) {
@@ -48,20 +67,5 @@ export async function POST(request: Request) {
     return Response.json({ error: NOT_RECOGNIZED }, { status: 404 });
   }
 
-  const { artwork, matchScore } = match;
-  const [artistWikipediaUrl, titleWikipediaUrl] = await Promise.all([
-    findWikipediaUrl(artwork.artist),
-    findWikipediaUrl(artwork.title, { minTokens: 2 }),
-  ]);
-
-  return Response.json({
-    artist: artwork.artist,
-    title: artwork.title,
-    imageUrl: artwork.imageUrl,
-    year: artwork.year,
-    collection: artwork.collection,
-    matchScore,
-    artistWikipediaUrl,
-    titleWikipediaUrl,
-  });
+  return Response.json(await withWikipedia(match.artwork, match.matchScore));
 }

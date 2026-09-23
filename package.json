@@ -8,12 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "scrape-art": "node scripts/scrape-art-database.mjs",
-    "update-catalog": "node scripts/update-catalog.js"
+    "update-catalog": "node scripts/update-catalog.js",
+    "generate-qr": "node scripts/generate-qr.js"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",
     "blockhash-core": "^0.1.0",
     "next": "16.3.5",
+    "openai": "^7.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sharp": "^0.35.4"
@@ -26,6 +28,7 @@
     "cheerio": "^1.2.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "qrcode": "^1.5.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
