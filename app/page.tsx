@@ -71,6 +71,7 @@ export default function Home() {
     status: catalogStatus,
     error: catalogError,
     rank,
+    getById,
     retry: retryCatalog,
   } = useCatalog();
 
@@ -80,12 +81,28 @@ export default function Home() {
 
   const [view, setView] = useState<View>("home");
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
-  const [match, setMatch] = useState<ArtworkMatch | null>(null);
+  const [rankedIds, setRankedIds] = useState<string[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [wikipedia, setWikipedia] = useState<Pick<
+    ArtworkMatch,
+    "artistWikipediaUrl" | "titleWikipediaUrl"
+  > | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  const goHome = useCallback(() => {
+    setRankedIds([]);
+    setCurrentIndex(0);
+    setWikipedia(null);
+    setAnalysisError(null);
+    setCapturedPhoto(null);
+    setView("home");
+  }, []);
 
   const openCamera = useCallback(() => {
     if (!scannerReady) return;
-    setMatch(null);
+    setRankedIds([]);
+    setCurrentIndex(0);
+    setWikipedia(null);
     setAnalysisError(null);
     setCapturedPhoto(null);
     setView("camera");
@@ -115,12 +132,10 @@ export default function Home() {
       }
 
       if (best.score > INSTANT_MATCH_SCORE) {
-        setMatch({
-          artist: best.artwork.artist,
-          title: best.artwork.title,
-          imageUrl: best.artwork.imageUrl,
-          year: best.artwork.year,
-        });
+        const ids = ranked.map(({ artwork }) => artwork.id);
+        setRankedIds(ids);
+        setCurrentIndex(0);
+        setWikipedia(null);
         setView("result");
 
         void fetch("/api/identify", {
@@ -130,11 +145,9 @@ export default function Home() {
         })
           .then((response) => response.json())
           .then((data: ArtworkMatch) => {
-            setMatch((current) => {
-              if (!current || current.artist !== data.artist || current.title !== data.title) {
-                return current;
-              }
-              return { ...current, ...data };
+            setWikipedia({
+              artistWikipediaUrl: data.artistWikipediaUrl,
+              titleWikipediaUrl: data.titleWikipediaUrl,
             });
           })
           .catch(() => undefined);
@@ -155,21 +168,38 @@ export default function Home() {
         }),
       });
 
-      const data: (ArtworkMatch & { error?: string }) | null = await response
-        .json()
-        .catch(() => null);
+      const data: (ArtworkMatch & { error?: string; ranked_ids?: unknown }) | null =
+        await response.json().catch(() => null);
 
-      if (!response.ok || !data?.artist || !data?.title) {
+      const ids = Array.isArray(data?.ranked_ids)
+        ? data.ranked_ids.filter((id): id is string => typeof id === "string" && id.length > 0)
+        : [];
+
+      if (!response.ok || ids.length === 0) {
         throw new Error(data?.error ?? NOT_RECOGNIZED);
       }
 
-      setMatch(data);
+      setRankedIds(ids);
+      setCurrentIndex(0);
+      setWikipedia({
+        artistWikipediaUrl: data.artistWikipediaUrl,
+        titleWikipediaUrl: data.titleWikipediaUrl,
+      });
     } catch (cause) {
       setAnalysisError(cause instanceof Error ? cause.message : NOT_RECOGNIZED);
     } finally {
       setView("result");
     }
   }, [capture, embed, rank, scannerReady, stopCamera]);
+
+  const tryNextCandidate = useCallback(() => {
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < rankedIds.length) {
+      setCurrentIndex(nextIndex);
+      return;
+    }
+    goHome();
+  }, [currentIndex, goHome, rankedIds.length]);
 
   if (view === "camera") {
     return (
@@ -252,6 +282,8 @@ export default function Home() {
     );
   }
 
+  const match = getById(rankedIds[currentIndex]);
+
   if (view === "result") {
     if (analysisError || !match) {
       return (
@@ -268,7 +300,7 @@ export default function Home() {
             <button type="button" onClick={openCamera} className={primaryButton}>
               Open Camera
             </button>
-            <button type="button" onClick={() => setView("home")} className={secondaryButton}>
+            <button type="button" onClick={goHome} className={secondaryButton}>
               Back to Home
             </button>
           </div>
@@ -277,12 +309,14 @@ export default function Home() {
     }
 
     const artworkImage = match.imageUrl ?? capturedPhoto;
+    const wiki = currentIndex === 0 ? wikipedia : null;
 
     return (
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10 lg:grid lg:grid-cols-2 lg:items-center lg:gap-12 lg:py-16">
         <div className="relative aspect-4/5 w-full overflow-hidden rounded-2xl bg-zinc-100 dark:bg-zinc-900">
           {artworkImage ? (
             <Image
+              key={match.id}
               src={artworkImage}
               alt={`${match.title} by ${match.artist}`}
               fill
@@ -297,14 +331,14 @@ export default function Home() {
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">Title</p>
             <h1 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-50 md:text-4xl">
-              <WikipediaText value={match.title} href={match.titleWikipediaUrl} />
+              <WikipediaText value={match.title} href={wiki?.titleWikipediaUrl} />
             </h1>
           </div>
 
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500">Artist</p>
             <p className="text-xl text-zinc-700 dark:text-zinc-300 md:text-2xl">
-              <WikipediaText value={match.artist} href={match.artistWikipediaUrl} />
+              <WikipediaText value={match.artist} href={wiki?.artistWikipediaUrl} />
             </p>
           </div>
 
@@ -319,7 +353,10 @@ export default function Home() {
             <button type="button" onClick={openCamera} className={primaryButton}>
               Scan Another
             </button>
-            <button type="button" onClick={() => setView("home")} className={secondaryButton}>
+            <button type="button" onClick={tryNextCandidate} className={secondaryButton}>
+              Try Again
+            </button>
+            <button type="button" onClick={goHome} className={secondaryButton}>
               Back to Home
             </button>
           </div>

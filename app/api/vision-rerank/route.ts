@@ -8,7 +8,6 @@ type ContentPart = OpenAI.Chat.Completions.ChatCompletionContentPart;
 
 const MODEL = "gpt-4o-mini";
 const NOT_RECOGNIZED = "Artwork not recognized";
-const MIN_MATCH_SCORE = 0.6;
 const MAX_CANDIDATES = 5;
 const MAX_IMAGE_CHARS = 2 * 1024 * 1024;
 const IMAGE_DATA_URL = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/;
@@ -17,17 +16,17 @@ const ALLOWED_IMAGE_HOST = "www.pkb.ch";
 const SYSTEM_PROMPT = [
   "You compare a visitor's photograph of an artwork against a short list of catalogue photos.",
   "The visitor photo may include glass reflections, a picture frame, glare or uneven lighting.",
-  "Ignore those artefacts. Decide whether one catalogue photo is the same physical artwork.",
+  "Ignore those artefacts. Rank every candidate from most to least likely to be the same artwork.",
   "Only ever refer to candidates by the id you are given. Answer with JSON only.",
 ].join(" ");
 
 const USER_PROMPT = [
   "The first image is the visitor photo.",
   "Each following image is a catalogue candidate, preceded by its id.",
-  "Return ONLY JSON: { id, matchScore }.",
-  "id is the candidate id of the very same artwork, or an empty string when none of them is that artwork.",
-  "matchScore is your confidence between 0 and 1.",
-  "Different artists often painted the same subject: match composition, colours and details, not just the theme.",
+  "Return ONLY JSON: { ranked_ids: string[] }.",
+  "ranked_ids lists every candidate id you were given, ordered from most probable to least probable.",
+  "Do not invent ids. Include each provided id exactly once.",
+  "Different artists often painted the same subject: rank by composition, colours and details, not just the theme.",
 ].join(" ");
 
 function parseJsonContent(content: string | null | undefined): Record<string, unknown> | null {
@@ -39,13 +38,6 @@ function parseJsonContent(content: string | null | undefined): Record<string, un
   } catch {
     return null;
   }
-}
-
-function toMatchScore(value: unknown): number {
-  const score = typeof value === "number" ? value : Number.parseFloat(String(value));
-  if (!Number.isFinite(score)) return 0;
-  const normalized = score > 1 ? score / 100 : score;
-  return Math.min(Math.max(normalized, 0), 1);
 }
 
 function parseCandidateIds(value: unknown): string[] | null {
@@ -64,6 +56,24 @@ function parseCandidateIds(value: unknown): string[] | null {
   }
 
   return ids.length > 0 ? ids : null;
+}
+
+function parseRankedIds(value: unknown, allowed: string[]): string[] {
+  const raw = Array.isArray(value) ? value : [];
+  const allowedSet = new Set(allowed);
+  const ranked: string[] = [];
+
+  for (const entry of raw) {
+    const id = typeof entry === "string" ? entry.trim() : "";
+    if (!id || !allowedSet.has(id) || ranked.includes(id)) continue;
+    ranked.push(id);
+  }
+
+  for (const id of allowed) {
+    if (!ranked.includes(id)) ranked.push(id);
+  }
+
+  return ranked;
 }
 
 function isAllowedImageUrl(value: string): boolean {
@@ -186,13 +196,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const chosenId = typeof parsed?.id === "string" ? parsed.id.trim() : "";
-  const artwork = candidates.find((candidate) => candidate.id === chosenId);
-  const matchScore = toMatchScore(parsed?.matchScore);
+  const ranked_ids = parseRankedIds(
+    parsed?.ranked_ids ?? parsed?.rankedIds,
+    candidates.map((candidate) => candidate.id)
+  );
+  const artwork = candidates.find((candidate) => candidate.id === ranked_ids[0]);
 
-  if (!artwork || matchScore < MIN_MATCH_SCORE) {
+  if (!artwork || ranked_ids.length === 0) {
     return Response.json({ error: NOT_RECOGNIZED }, { status: 404 });
   }
 
-  return Response.json(await withWikipedia(artwork, matchScore));
+  return Response.json({
+    ranked_ids,
+    ...(await withWikipedia(artwork, 1)),
+  });
 }

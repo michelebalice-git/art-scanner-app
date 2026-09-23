@@ -51,6 +51,11 @@ export function useCatalog() {
     };
   }, [attempt]);
 
+  const getById = useCallback(
+    (id: string | undefined) => artworks.find((artwork) => artwork.id === id) ?? null,
+    [artworks]
+  );
+
   const rank = useCallback(
     (embedding: number[], topK: number): RankedArtwork[] => {
       if (status !== "ready" || embedding.length !== dims) return [];
@@ -67,5 +72,5 @@ export function useCatalog() {
     setAttempt((value) => value + 1);
   }, []);
 
-  return { status, error, rank, retry };
+  return { status, error, rank, getById, retry };
 }
