@@ -4,7 +4,7 @@
   "hashAlgorithm": "blockhash",
   "hashBits": 16,
   "hashImageSize": 256,
-  "count": 284,
+  "count": 285,
   "artworks": [
     {
       "id": "102-theimer-ivan-1",
@@ -1508,6 +1508,17 @@
       "hash": "efe5c4cc80c107f307fb3fff06410382c78ee83e027f04670c9213f90e7f0c3f",
       "embedding": "AgH9A/wFAgsHBP0D8gH8/PcGAgT2Bv0HAggAAQL5BPkABPH+/wEF/AYA+AIC7QwA/AT8/P3+AP/7/wT7/v/3AfgD/wf/Av76//78+f4EBv4F/AL/AAICBAL///yBBQUBBgQBAgQEAv//AO7//gH//wUBBPwFBQD//+79AfgC/QMKBgH9/RD7Afry/gQF+vj7+f0BAAL9+//8APwGAvz6BgACBgL8APUGAf8H+QIEBQz6//3+///9/Pv/BwMG//sBDP8EBP4ABP4BAQUHBPwBAP4D+QkB+QgAAvny/QUG/vkDAAD3/wYF/fwAAf0EBPoB/v0H/Pvx/gEBAv8C/wMEAPb9+P0E///x+wQC/wH/AP8FA/wDAgIDAAECCQMCAvD/AQD5AgICBwn/AwUC9/v9BQIBAQICAfz/EAUDBfwDBPQBIAIDAAD9Af4I+AAA/v37+wX9+gX9/voF+wUDAQADAgMBAf0GAAT5AQAFA/wA/woDBv3+BAEACgH//vv/Av8D+gj///sT9/4EAwIB/wEA+gAABP4A+/4EAf8LAwAA/fsBBQYD/v/+9wD7AQUbBAMADP0I/wIC/gH8+QT6/gMF/QICAvoDAAIF+gj+/wACAP4E/vn7+f/++wL8AQcA/gT//wL+BwQHCv76/QAEAfr9/wD/AgMK/P8FBf0D+wP///8=",
       "embeddingScale": 0.005760767
+    },
+    {
+      "id": "185-laura-owens-low",
+      "artist": "Laura Owens",
+      "title": "\"Senza titolo LO373\"",
+      "collection": "Modern and Contemporary art",
+      "imageUrl": "https://www.pkb.ch/wp-content/uploads/2026/09/185-Laura-Owens-LOW.jpg",
+      "sourceUrl": "https://www.pkb.ch/en/art-pkb/modern-and-contemporary-art/",
+      "hash": "ffff9df78001800180038e619ef33ef33693b8939833847f941b8803d831fff9",
+      "embedding": "B/gBAwX7AQUGA/sE9/wA+ff9/wT7AwEGAwAB/gD6AP4CAfUA+/oH/AP9/f8G5wgCAf39CP389v/3/gD6/wMCAwP//P36/Aj/BAIC+gEICPQABfv/BPsKAAH5A/uBBAD8+gLz8Qn3A/4BAOoEAgMB8/4BBAAIAwIJ/PD6Bv37AwUGCwL6/RABAP3y/v/+A/f99gIABP/9Av0B+///AAMHAwP+BQb0BPv/BAD6+wL/Av8F/PMCCP7+//sBCAQABv0HDv38B/oD9wH/+gAIAPkAAf76+xkD+fv/AAMEAQf7+QEDAgHx/Qb/+vwF/AgDAPz8APkK/vrxAPr9Av8BAAQEAvkA6AYHBPru+f/++gj//gMGAAMC+woA/AUBAgICBPgA/P39B/3//Qf7+v/6+/f+AgT3/wcAA/kCEAYBAfYCB+4CIgMEAgD/AQEE//7//vn2/wgA9wP//gEC/gb/+wQKAQX+AAIG/QQAB/74BPn/+wsHCAADAAUEBQH89QEBAQACBAr+/f4l/f0B//v8/QAHAfz8EfkG/v0DAQEJA/3//QIA/AIA/fwB+fkCAgIoAQMBCf8FAgT3AP77Af8A//8E/gIE/P/8/v4B/gv5A/8FBPsEBv8AAQD6+//6BQQC/An8/gL6CwQBAwD8+wb6CfYA/v4CAwEH+AUABf//AAUK+Ac=",
+      "embeddingScale": 0.0052507037
     },
     {
       "id": "186-giuseppe-gallo",
